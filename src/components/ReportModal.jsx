@@ -57,13 +57,45 @@ export default function ReportModal({ onSubmit, onClose, loading, userGroups = [
           </label>
 
           {/* Address */}
-          <div style={S.field}>
-            <label style={S.fieldLabel}>מיקום החניה</label>
-            <input style={S.input} placeholder="הכנס כתובת..." value={address}
-              onChange={e => setAddress(e.target.value)} dir="rtl" />
-            <button style={S.locationLink}>← השתמש במיקום שלי</button>
-          </div>
-
+<div style={S.field}>
+  <label style={S.fieldLabel}>מיקום החניה</label>
+  <input
+    style={S.input}
+    placeholder="הכנס כתובת..."
+    value={address}
+    onChange={e => setAddress(e.target.value)}
+    dir="rtl"
+  />
+  <button
+    type="button"
+    style={S.locationLink}
+    onClick={() => {
+      if (!navigator.geolocation) {
+        setAddress('מיקום לא זמין');
+        return;
+      }
+      setAddress('מאתר מיקום...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=he`)
+            .then(r => r.json())
+            .then(data => {
+              if (data && data.display_name) {
+                setAddress(data.display_name);
+              } else {
+                setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+              }
+            })
+            .catch(() => {
+              setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            });
+                  }
+      );
+    }}>← השתמש במיקום שלי</button>   
+       </div>
+       
           {/* Paid */}
           <div style={S.field}>
             <label style={S.fieldLabel}>חניה בתשלום?</label>

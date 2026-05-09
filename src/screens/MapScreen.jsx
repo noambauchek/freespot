@@ -15,7 +15,6 @@ import SpotInfoPanel from '../components/Map/SpotInfoPanel';
 import BottomNav from '../components/BottomNav';
 import AlertBadge from '../components/AlertBadge';
 import ReportModal from '../components/ReportModal';
-import logoImg from '../assets/logo.png';
 
 // ─── Google Maps API Key (web platform) ──────────────────────────────────────
 // Place your key in .env as REACT_APP_GOOGLE_MAPS_KEY=...
@@ -32,15 +31,15 @@ export default function MapScreen() {
   const { userLocation, liveSpots, selectedSpot, setSelectedSpot, alerts } = useParking();
   const { uid, userProfile } = useAuth();
   const { reportSpot, loading: reportLoading } = useReportSpot();
-const [userGroups, setUserGroups] = useState([]);
+  const [userGroups, setUserGroups] = useState([]);
 
-useEffect(() => {
-  if (uid) {
-    import('../services/firestore').then(({ getUserGroups }) => {
-      getUserGroups(uid).then(setUserGroups);
-    });
-  }
-}, [uid]);
+  useEffect(() => {
+    if (uid) {
+      import('../services/firestore').then(({ getUserGroups }) => {
+        getUserGroups(uid).then(setUserGroups);
+      });
+    }
+  }, [uid]);
 
   const mapRef        = useRef(null); // <div> container
   const googleMapRef  = useRef(null); // google.maps.Map instance
@@ -52,25 +51,25 @@ useEffect(() => {
 
   // ── Load Google Maps SDK ────────────────────────────────────────────────────
   useEffect(() => {
-    if (window.google) { setMapReady(true); return; }
+    if (window.google?.maps) { setMapReady(true); return; }
+    if (document.querySelector('#google-maps-script')) return;
 
     const script = document.createElement('script');
+    script.id = 'google-maps-script';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&language=iw`;
     script.async = true;
+    script.defer = true;
     script.onload = () => setMapReady(true);
     document.head.appendChild(script);
   }, []);
 
   // ── Initialize Map ──────────────────────────────────────────────────────────
-  useEffect(() => {
+useEffect(() => {
     if (!mapReady || !mapRef.current || googleMapRef.current) return;
-
-    const center = userLocation
-      ? { lat: userLocation.lat, lng: userLocation.lng }
-      : { lat: 32.0853, lng: 34.7818 }; // Tel Aviv default
+    if (!userLocation) return; // Wait for location before initializing
 
     googleMapRef.current = new window.google.maps.Map(mapRef.current, {
-      center,
+      center: { lat: userLocation.lat, lng: userLocation.lng },
       zoom: 16,
       styles: DARK_MAP_STYLES,
       disableDefaultUI: true,
@@ -79,7 +78,13 @@ useEffect(() => {
     });
   }, [mapReady, userLocation]);
 
-  // ── Update user position marker ─────────────────────────────────────────────
+// ── Re-center map when location first arrives ───────────────────────────────
+useEffect(() => {
+  if (!googleMapRef.current || !userLocation) return;
+  googleMapRef.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+}, [userLocation]);
+
+  // ── Update user position marker (blue dot) ──────────────────────────────────
   useEffect(() => {
     if (!mapReady || !googleMapRef.current || !userLocation) return;
 
@@ -103,6 +108,7 @@ useEffect(() => {
       userMarkerRef.current.setPosition(pos);
     }
   }, [mapReady, userLocation]);
+
 
   // ── Sync live spot markers ───────────────────────────────────────────────────
   useEffect(() => {
@@ -151,25 +157,25 @@ useEffect(() => {
   }, []);
 
   const handleModalSubmit = useCallback(async (details) => {
-  try {
-    const spotId = await reportSpot({
-      spotType: details.spotType,
-      isGroupOnly: details.isGroupOnly || false,
-      groupId: details.groupId || null,
-    });
-    if (spotId) {
-      setShowModal(false);
-      const msg = details.isGroupOnly && details.groupId
-        ? '🔒 הדיווח נשלח לקבוצה בלבד!'
-        : '✅ הדיווח נשלח! קיבלת 10 נקודות';
-      showToast(msg);
-    } else {
-      showToast('❌ שגיאה בדיווח, נסה שוב');
+    try {
+      const spotId = await reportSpot({
+        spotType: details.spotType,
+        isGroupOnly: details.isGroupOnly || false,
+        groupId: details.groupId || null,
+      });
+      if (spotId) {
+        setShowModal(false);
+        const msg = details.isGroupOnly && details.groupId
+          ? '🔒 הדיווח נשלח לקבוצה בלבד!'
+          : '✅ הדיווח נשלח! קיבלת 10 נקודות';
+        showToast(msg);
+      } else {
+        showToast('❌ שגיאה בדיווח, נסה שוב');
+      }
+    } catch (e) {
+      showToast('❌ שגיאה: ' + e.message);
     }
-  } catch (e) {
-    showToast('❌ שגיאה: ' + e.message);
-  }
-}, [reportSpot]);
+  }, [reportSpot]);
 
   const handleNavigate = useCallback((provider) => {
     if (!selectedSpot) return;
@@ -177,8 +183,8 @@ useEffect(() => {
     const lng = selectedSpot.lng || selectedSpot.longitude;
     if (provider === 'waze') navigateWithWaze(lat, lng);
     else navigateWithGoogleMaps(lat, lng);
-    setSelectedSpot(null);
-  }, [selectedSpot, setSelectedSpot]);
+    // Don't close the panel here – SpotInfoPanel will show Pango buttons after navigation
+  }, [selectedSpot]);
 
   const handleMarkTaken = useCallback(async () => {
     if (!selectedSpot || !uid) return;
@@ -200,7 +206,7 @@ useEffect(() => {
 
       {/* Top bar */}
       <div style={styles.topBar}>
-        <img src={logoImg} alt="FreeSpot" style={{ height: 80, objectFit: 'contain' }} />
+        <div style={styles.logo}>FreeSpot 🅿️</div>
         <AlertBadge count={alerts.length} onClick={() => navigate('/profile')} />
       </div>
 
@@ -236,12 +242,12 @@ useEffect(() => {
 
       {/* Report Modal */}
       {showModal && (
-                <ReportModal
-  onSubmit={handleModalSubmit}
-  onClose={() => setShowModal(false)}
-  loading={reportLoading}
-  userGroups={userGroups}
-/>
+        <ReportModal
+          onSubmit={handleModalSubmit}
+          onClose={() => setShowModal(false)}
+          loading={reportLoading}
+          userGroups={userGroups}
+        />
       )}
 
       {/* Bottom navigation */}
