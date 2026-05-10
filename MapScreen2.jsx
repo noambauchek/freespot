@@ -39,6 +39,7 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [toast, setToast]       = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [prediction, setPrediction] = useState(null);
 
   // ── Load Google Maps SDK ────────────────────────────────────────────────────
   useEffect(() => {
@@ -170,7 +171,33 @@ export default function MapScreen() {
     setSelectedSpot(null);
     showToast('✔ סומנה כתפוסה');
   }, [selectedSpot, uid, setSelectedSpot]);
+function calculateParkingPrediction() {
+  const hour = new Date().getHours();
 
+  let estimatedTime;
+  let demandLevel;
+
+  if (hour >= 7 && hour <= 9) {
+    estimatedTime = 3;
+    demandLevel = 'גבוהה מאוד';
+  } else if (hour >= 17 && hour <= 20) {
+    estimatedTime = 4;
+    demandLevel = 'גבוהה';
+  } else if (hour >= 10 && hour <= 16) {
+    estimatedTime = 7;
+    demandLevel = 'בינונית';
+  } else {
+    estimatedTime = 10;
+    demandLevel = 'נמוכה';
+  }
+
+  setPrediction({
+    estimatedTime,
+    demandLevel,
+    lat: userLocation?.lat,
+    lng: userLocation?.lng,
+  });
+}
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -192,6 +219,25 @@ export default function MapScreen() {
         <div style={styles.spotsCount}>
           {liveSpots.length} חניות פנויות
         </div>
+      <div style={styles.predictionBox}>
+      <button style={styles.predictionBtn} onClick={calculateParkingPrediction}>
+        חיזוי תפיסת חניה
+      </button>
+    
+      {prediction && (
+        <div style={styles.predictionText}>
+          חניה באזור שלך צפויה להיתפס תוך כ-
+          {prediction.estimatedTime} דקות
+          <br />
+          רמת ביקוש: {prediction.demandLevel}
+        </div>
+      )}
+    </div>
+    {liveSpots.length > 0 && (
+  <div style={styles.spotsCount}>
+    {liveSpots.length} חניות פנויות
+  </div>
+)}
       )}
 
       {/* Selected spot info panel */}
@@ -274,6 +320,37 @@ const styles = {
     boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
     pointerEvents: 'none',
   },
+  predictionBox: {
+  position: 'absolute',
+  top: 125,
+  right: '50%',
+  transform: 'translateX(50%)',
+  background: 'rgba(15,23,42,0.92)',
+  color: '#fff',
+  padding: 12,
+  borderRadius: 16,
+  textAlign: 'center',
+  width: 260,
+  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+  zIndex: 10,
+},
+
+predictionBtn: {
+  background: '#22c55e',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: '10px 16px',
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: 'pointer',
+},
+
+predictionText: {
+  marginTop: 10,
+  fontSize: 14,
+  lineHeight: 1.5,
+},
 };
 
 // ─── Google Maps dark style ───────────────────────────────────────────────────
