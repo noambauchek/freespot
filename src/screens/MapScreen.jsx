@@ -48,7 +48,7 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [toast, setToast]       = useState(null);
   const [showModal, setShowModal] = useState(false);
-
+  const [prediction, setPrediction] = useState(null);
   // ── Load Google Maps SDK ────────────────────────────────────────────────────
   useEffect(() => {
     if (window.google?.maps) { setMapReady(true); return; }
@@ -194,6 +194,35 @@ useEffect(() => {
     showToast('✔ סומנה כתפוסה');
   }, [selectedSpot, uid, setSelectedSpot]);
 
+
+  function calculateParkingPrediction() {
+    const hour = new Date().getHours();
+
+    let estimatedTime;
+    let demandLevel;
+
+    if (hour >= 7 && hour <= 9) {
+      estimatedTime = 3;
+      demandLevel = 'גבוהה מאוד';
+    } else if (hour >= 17 && hour <= 20) {
+      estimatedTime = 4;
+      demandLevel = 'גבוהה';
+    } else if (hour >= 10 && hour <= 16) {
+      estimatedTime = 7;
+      demandLevel = 'בינונית';
+    } else {
+      estimatedTime = 10;
+      demandLevel = 'נמוכה';
+    }
+
+    setPrediction({
+      estimatedTime,
+      demandLevel,
+      lat: userLocation?.lat,
+      lng: userLocation?.lng,
+    });
+  }
+
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -216,6 +245,21 @@ useEffect(() => {
           {liveSpots.length} חניות פנויות
         </div>
       )}
+
+      {/* Parking prediction */}
+      <div style={styles.predictionBox}>
+        <button style={styles.predictionBtn} onClick={calculateParkingPrediction}>
+          חיזוי תפיסת חניה
+        </button>
+
+        {prediction && (
+          <div style={styles.predictionText}>
+            חניה באזור שלך צפויה להיתפס תוך כ-{prediction.estimatedTime} דקות
+            <br />
+            רמת ביקוש: {prediction.demandLevel}
+          </div>
+        )}
+      </div>
 
       {/* Selected spot info panel */}
       {selectedSpot && (
@@ -288,6 +332,36 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 6px 30px rgba(99,102,241,0.6)',
     transition: 'transform 0.15s, opacity 0.2s',
+  },
+
+  predictionBox: {
+    position: 'absolute',
+    top: 120,
+    right: '50%',
+    transform: 'translateX(50%)',
+    background: 'rgba(15,23,42,0.92)',
+    color: '#fff',
+    padding: 12,
+    borderRadius: 16,
+    textAlign: 'center',
+    width: 260,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+    zIndex: 10,
+  },
+  predictionBtn: {
+    background: '#22c55e',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    padding: '10px 16px',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  predictionText: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 1.5,
   },
   toast: {
     position: 'absolute', top: '50%', right: '50%',
