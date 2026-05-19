@@ -36,11 +36,33 @@ export function useReportSpot() {
     try {
       const { lat, lng } = userLocation;
 
+      const extraDetails = {
+        reliabilityScore: userProfile?.rank ? 80 : 60,
+        reporterRank: userProfile?.rank || null,
+      };
+
       // 1. Write to Firestore (persistent record)
-      const spotId = await reportSpotAvailable(uid, lat, lng, spotType, isGroupOnly, groupId);
+      const spotId = await reportSpotAvailable(
+        uid,
+        lat,
+        lng,
+        spotType,
+        isGroupOnly,
+        groupId,
+        extraDetails
+      );
 
       // 2. Mirror to Realtime DB (instant broadcast)
-      await setLiveSpot(spotId, { lat, lng, status: 'S1', reportedBy: uid, type: spotType, isGroupOnly, groupId });
+      await setLiveSpot(spotId, {
+        lat,
+        lng,
+        status: 'S1',
+        reportedBy: uid,
+        type: spotType,
+        isGroupOnly,
+        groupId,
+        ...extraDetails,
+      });
 
       // 3. Broadcast nearby alert
       await broadcastNearbyAlert(lat, lng, spotId, 'N1', isGroupOnly, groupId);
