@@ -54,7 +54,7 @@ export function encodeGeohash(lat, lng, precision = 4) {
  * Write/update a live spot entry. This fires instantly to all listeners.
  * spotId should match the Firestore document ID so both DBs stay in sync.
  */
-export async function setLiveSpot(spotId, { lat, lng, status, reportedBy, type, isGroupOnly, groupId }) {
+export async function setLiveSpot(spotId, { lat, lng, status, reportedBy, type, isGroupOnly, groupId, ...extraDetails }) {
   const geohash = encodeGeohash(lat, lng, 4);
   await set(ref(rtdb, paths.liveSpot(spotId)), {
     lat, lng, status,
@@ -65,6 +65,7 @@ export async function setLiveSpot(spotId, { lat, lng, status, reportedBy, type, 
     geohash4: geohash,
     reportedAt: Date.now(),
     expiresAt: Date.now() + SPOT_TTL_MS,
+    ...extraDetails,
   });
 }
 
