@@ -11,10 +11,11 @@ import { markSpotTaken } from '../services/firestore';
 import { updateLiveSpotStatus } from '../services/realtimeDB';
 import { navigateWithGoogleMaps, navigateWithWaze } from '../services/locationService';
 import { SPOT_STATUS, SPOT_TYPE } from '../services/firestore';
-import SpotInfoPanel from '../components/Map/SpotInfoPanel';
+import SpotInfoPanel from '../Map/SpotInfoPanel';
 import BottomNav from '../components/BottomNav';
 import AlertBadge from '../components/AlertBadge';
 import ReportModal from '../components/ReportModal';
+import { rankParkingSpots } from '../services/parkingAlgorithmApi';
 
 // ─── Google Maps API Key (web platform) ──────────────────────────────────────
 // Place your key in .env as REACT_APP_GOOGLE_MAPS_KEY=...
@@ -49,6 +50,7 @@ export default function MapScreen() {
   const [toast, setToast]       = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [prediction, setPrediction] = useState(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
   // ── Load Google Maps SDK ────────────────────────────────────────────────────
   useEffect(() => {
     if (window.google?.maps) { setMapReady(true); return; }
@@ -195,32 +197,39 @@ useEffect(() => {
   }, [selectedSpot, uid, setSelectedSpot]);
 
 
-  function calculateParkingPrediction() {
-    const hour = new Date().getHours();
-
-    let estimatedTime;
-    let demandLevel;
-
-    if (hour >= 7 && hour <= 9) {
-      estimatedTime = 3;
-      demandLevel = 'גבוהה מאוד';
-    } else if (hour >= 17 && hour <= 20) {
-      estimatedTime = 4;
-      demandLevel = 'גבוהה';
-    } else if (hour >= 10 && hour <= 16) {
-      estimatedTime = 7;
-      demandLevel = 'בינונית';
-    } else {
-      estimatedTime = 10;
-      demandLevel = 'נמוכה';
+  async function calculateParkingPrediction() {
+    if (!userLocation) {
+      showToast('❌ לא נמצא מיקום משתמש');
+      return;
     }
 
-    setPrediction({
-      estimatedTime,
-      demandLevel,
-      lat: userLocation?.lat,
-      lng: userLocation?.lng,
-    });
+    setPredictionLoading(true);
+
+    try {
+      const ranking = await rankParkingSpots({
+        userLocation,
+        liveSpots,
+        maxRadiusKm: 1.5,
+      });
+
+      setPrediction({
+        bestSpot: ranking.bestSpot,
+        results: ranking.results,
+        source: ranking.source,
+      });
+
+      if (ranking.bestSpot) {
+        setSelectedSpot(ranking.bestSpot);
+        showToast('✅ נמצאה החניה המומלצת ביותר');
+      } else {
+        showToast('לא נמצאו חניות זמינות ברדיוס הקרוב');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('❌ שגיאה בחישוב החניה המומלצת');
+    } finally {
+      setPredictionLoading(false);
+    }
   }
 
   function showToast(msg) {
@@ -248,15 +257,27 @@ useEffect(() => {
 
       {/* Parking prediction */}
       <div style={styles.predictionBox}>
-        <button style={styles.predictionBtn} onClick={calculateParkingPrediction}>
-          חיזוי תפיסת חניה
+        <button
+          style={{ ...styles.predictionBtn, opacity: predictionLoading ? 0.6 : 1 }}
+          onClick={calculateParkingPrediction}
+          disabled={predictionLoading}
+        >
+          {predictionLoading ? 'מחשב...' : 'מצא לי חניה מומלצת'}
         </button>
 
         {prediction && (
           <div style={styles.predictionText}>
-            חניה באזור שלך צפויה להיתפס תוך כ-{prediction.estimatedTime} דקות
-            <br />
-            רמת ביקוש: {prediction.demandLevel}
+            {prediction.bestSpot ? (
+              <>
+                החניה המומלצת נמצאת במרחק {prediction.bestSpot.distanceKm} ק״מ
+                <br />
+                ציון התאמה: {prediction.bestSpot.score}/100
+                <br />
+                זמן הליכה משוער: {prediction.bestSpot.estimatedWalkingMinutes} דקות
+              </>
+            ) : (
+              <>לא נמצאו חניות זמינות ברדיוס הקרוב</>
+            )}
           </div>
         )}
       </div>
