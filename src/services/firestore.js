@@ -200,7 +200,7 @@ export async function unbanUser(uid) {
  * @param {boolean} isGroupOnly - share only with a private group?
  * @param {string?} groupId
  */
-export async function reportSpotAvailable(userId, lat, lng, spotType, isGroupOnly = false, groupId = null) {
+export async function reportSpotAvailable(userId, lat, lng, spotType, isGroupOnly = false, groupId = null, extraDetails = {}) {
   const now = serverTimestamp();
   const spotRef = await addDoc(collection(db, COLLECTIONS.PARKING_SPOTS), {
     location: new GeoPoint(lat, lng),
@@ -216,6 +216,8 @@ export async function reportSpotAvailable(userId, lat, lng, spotType, isGroupOnl
     groupId,
     viewCount: 0,
     navigatedCount: 0,
+    algorithmVersion: 'v1',
+    ...extraDetails,
   });
 
   // Create the linked Report document
@@ -224,9 +226,13 @@ export async function reportSpotAvailable(userId, lat, lng, spotType, isGroupOnl
     userId,
     timestamp: now,
     reportType: REPORT_TYPE.SPOT_AVAILABLE,
+    latitude: lat,
+    longitude: lng,
+    spotType,
     validity: true,
     isGroupOnly,
     groupId,
+    ...extraDetails,
   });
 
   return spotRef.id;
