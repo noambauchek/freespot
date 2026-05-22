@@ -11,7 +11,7 @@ import { markSpotTaken } from '../services/firestore';
 import { updateLiveSpotStatus } from '../services/realtimeDB';
 import { navigateWithGoogleMaps, navigateWithWaze } from '../services/locationService';
 import { SPOT_STATUS, SPOT_TYPE } from '../services/firestore';
-import SpotInfoPanel from '../Map/SpotInfoPanel';
+import SpotInfoPanel from '../components/Map/SpotInfoPanel';
 import BottomNav from '../components/BottomNav';
 import AlertBadge from '../components/AlertBadge';
 import ReportModal from '../components/ReportModal';
@@ -196,6 +196,35 @@ useEffect(() => {
     showToast('✔ סומנה כתפוסה');
   }, [selectedSpot, uid, setSelectedSpot]);
 
+  function calculatePrediction() {
+    const hour = new Date().getHours();
+														   
+			 
+	 
+
+    let estimatedTime;
+    let demandLevel;
+
+    if (hour >= 7 && hour <= 9) {
+      estimatedTime = 3;
+      demandLevel = 'גבוהה מאוד';
+    } else if (hour >= 17 && hour <= 20) {
+      estimatedTime = 4;
+      demandLevel = 'גבוהה';
+    } else if (hour >= 10 && hour <= 16) {
+      estimatedTime = 7;
+      demandLevel = 'בינונית';
+    } else {
+      estimatedTime = 10;
+      demandLevel = 'נמוכה';
+    }
+
+    setPrediction({
+      estimatedTime,
+      demandLevel,
+      lat: userLocation?.lat,
+      lng: userLocation?.lng,
+    });
 
   async function calculateParkingPrediction() {
     if (!userLocation) {
@@ -204,6 +233,7 @@ useEffect(() => {
     }
 
     setPredictionLoading(true);
+	 
 
     try {
       const ranking = await rankParkingSpots({
@@ -211,11 +241,19 @@ useEffect(() => {
         liveSpots,
         maxRadiusKm: 1.5,
       });
+						   
+				  
+										   
+   
+
+		  
+								  
 
       setPrediction({
         bestSpot: ranking.bestSpot,
         results: ranking.results,
         source: ranking.source,
+													   
       });
 
       if (ranking.bestSpot) {
@@ -257,27 +295,20 @@ useEffect(() => {
 
       {/* Parking prediction */}
       <div style={styles.predictionBox}>
-        <button
-          style={{ ...styles.predictionBtn, opacity: predictionLoading ? 0.6 : 1 }}
-          onClick={calculateParkingPrediction}
-          disabled={predictionLoading}
-        >
-          {predictionLoading ? 'מחשב...' : 'מצא לי חניה מומלצת'}
+      																				   
+        <button style={styles.predictionBtn} onClick={calculateParkingPrediction}>
+          חיזוי תפיסת חניה
+		 
+																				   
         </button>
 
         {prediction && (
           <div style={styles.predictionText}>
-            {prediction.bestSpot ? (
-              <>
-                החניה המומלצת נמצאת במרחק {prediction.bestSpot.distanceKm} ק״מ
-                <br />
-                ציון התאמה: {prediction.bestSpot.score}/100
-                <br />
-                זמן הליכה משוער: {prediction.bestSpot.estimatedWalkingMinutes} דקות
-              </>
-            ) : (
-              <>לא נמצאו חניות זמינות ברדיוס הקרוב</>
-            )}
+            חניה באזור שלך צפויה להיתפס תוך כ-{prediction.estimatedTime} דקות
+				
+																									   
+            <br />
+            רמת ביקוש: {prediction.demandLevel}
           </div>
         )}
       </div>
