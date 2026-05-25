@@ -59,13 +59,19 @@ export default function ReportModal({ onSubmit, onClose, loading, userGroups = [
           {/* Address */}
 <div style={S.field}>
   <label style={S.fieldLabel}>מיקום החניה</label>
-  <input
-    style={S.input}
-    placeholder="הכנס כתובת..."
-    value={address}
-    onChange={e => setAddress(e.target.value)}
-    dir="rtl"
-  />
+  <div style={{
+    padding: '11px 14px',
+    border: '1.5px solid #e2e8f0',
+    borderRadius: 10,
+    fontSize: 14,
+    color: address && address !== 'מאתר מיקום...' ? '#1e293b' : '#94a3b8',
+    background: '#f1f5f9',
+    minHeight: 44,
+    textAlign: 'right',
+    direction: 'rtl',
+  }}>
+    {address || 'המיקום יתמלא אוטומטית לאחר לחיצה על הכפתור'}
+  </div>
   <button
     type="button"
     style={S.locationLink}
@@ -82,19 +88,30 @@ export default function ReportModal({ onSubmit, onClose, loading, userGroups = [
           fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=he`)
             .then(r => r.json())
             .then(data => {
-              if (data && data.display_name) {
-                setAddress(data.display_name);
+              if (data && data.address) {
+                const a = data.address;
+                const street = a.road || a.pedestrian || '';
+                const number = a.house_number || '';
+                const city   = a.city || a.town || a.village || '';
+                let result = '';
+                if (street && number) result = `${street} ${number}`;
+                else if (street)      result = street;
+                if (city) result = result ? `${result}, ${city}` : city;
+                setAddress(result || data.display_name);
               } else {
                 setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
               }
             })
-            .catch(() => {
-              setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-            });
-                  }
+            .catch(() => setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`));
+        },
+        () => setAddress('לא ניתן לאתר מיקום'),
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 }
       );
-    }}>← השתמש במיקום שלי</button>   
-       </div>
+    }}
+  >
+    📍 זהה מיקום אוטומטית
+  </button>
+</div>
        
           {/* Paid */}
           <div style={S.field}>
