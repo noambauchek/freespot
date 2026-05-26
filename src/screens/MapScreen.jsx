@@ -1,39 +1,49 @@
 // src/screens/MapScreen.jsx
-// Main map screen – shows live parking spots on Google Maps,
-// big "Report Spot" CTA, navigation actions, and bottom nav.
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useParking } from '../store/ParkingContext';
 import { useAuth } from '../store/AuthContext';
 import { useReportSpot } from '../hooks/useReportSpot';
-import { markSpotTaken } from '../services/firestore';
+import { markSpotTaken, SPOT_STATUS } from '../services/firestore';
 import { updateLiveSpotStatus } from '../services/realtimeDB';
 import { navigateWithGoogleMaps, navigateWithWaze } from '../services/locationService';
-import { SPOT_STATUS, SPOT_TYPE } from '../services/firestore';
 import SpotInfoPanel from '../components/Map/SpotInfoPanel';
 import BottomNav from '../components/BottomNav';
 import AlertBadge from '../components/AlertBadge';
 import ReportModal from '../components/ReportModal';
-import { rankParkingSpots } from '../services/parkingAlgorithmApi';
+import SearchBar from '../components/SearchBar';
+import SearchResultsPanel from '../components/SearchResultsPanel';
 
-// ─── Google Maps API Key (web platform) ──────────────────────────────────────
-// Place your key in .env as REACT_APP_GOOGLE_MAPS_KEY=...
-const MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY || 'YOUR_GOOGLE_MAPS_API_KEY';
+const MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY || '';
 
 const SPOT_COLOR = {
-  [SPOT_STATUS.AVAILABLE]: '#22c55e', // green
-  [SPOT_STATUS.OCCUPIED]:  '#ef4444', // red
-  [SPOT_STATUS.EXPIRED]:   '#94a3b8', // grey
+  S1: '#22c55e',
+  S2: '#ef4444',
+  S3: '#94a3b8',
+  available: '#22c55e',
+  occupied:  '#ef4444',
+  expired:   '#94a3b8',
 };
 
 export default function MapScreen() {
   const navigate = useNavigate();
   const { userLocation, liveSpots, selectedSpot, setSelectedSpot, alerts } = useParking();
-  const { uid, userProfile } = useAuth();
+  const { uid } = useAuth();
   const { reportSpot, loading: reportLoading } = useReportSpot();
-  const [userGroups, setUserGroups] = useState([]);
+  const [userGroups, setUserGroups]     = useState([]);
+  const mapRef        = useRef(null);
+  const googleMapRef  = useRef(null);
+  const markersRef    = useRef({});
+  const userMarkerRef = useRef(null);
+  const [mapReady, setMapReady]         = useState(false);
+  const [toast, setToast]               = useState(null);
+  const [showModal, setShowModal]       = useState(false);
+  const [prediction, setPrediction]     = useState(null);
+  const [predLoading, setPredLoading]   = useState(false);
+  const [searchLocation, setSearchLocation] = useState(null);
 
+  // Load user groups
   useEffect(() => {
     if (uid) {
       import('../services/firestore').then(({ getUserGroups }) => {
@@ -42,20 +52,10 @@ export default function MapScreen() {
     }
   }, [uid]);
 
-  const mapRef        = useRef(null); // <div> container
-  const googleMapRef  = useRef(null); // google.maps.Map instance
-  const markersRef    = useRef({});   // spotId → Marker
-  const userMarkerRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [toast, setToast]       = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [predictionLoading, setPredictionLoading] = useState(false);
-  // ── Load Google Maps SDK ────────────────────────────────────────────────────
+  // Load Google Maps SDK
   useEffect(() => {
     if (window.google?.maps) { setMapReady(true); return; }
     if (document.querySelector('#google-maps-script')) return;
-
     const script = document.createElement('script');
     script.id = 'google-maps-script';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&language=iw`;
@@ -65,11 +65,9 @@ export default function MapScreen() {
     document.head.appendChild(script);
   }, []);
 
-  // ── Initialize Map ──────────────────────────────────────────────────────────
-useEffect(() => {
-    if (!mapReady || !mapRef.current || googleMapRef.current) return;
-    if (!userLocation) return; // Wait for location before initializing
-
+  // Initialize map
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || googleMapRef.current || !userLocation) return;
     googleMapRef.current = new window.google.maps.Map(mapRef.current, {
       center: { lat: userLocation.lat, lng: userLocation.lng },
       zoom: 16,
@@ -80,16 +78,15 @@ useEffect(() => {
     });
   }, [mapReady, userLocation]);
 
-// ── Re-center map when location first arrives ───────────────────────────────
-useEffect(() => {
-  if (!googleMapRef.current || !userLocation) return;
-  googleMapRef.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-}, [userLocation]);
+  // Re-center on location
+  useEffect(() => {
+    if (!googleMapRef.current || !userLocation) return;
+    googleMapRef.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+  }, [userLocation]);
 
-  // ── Update user position marker (blue dot) ──────────────────────────────────
+  // Blue dot marker
   useEffect(() => {
     if (!mapReady || !googleMapRef.current || !userLocation) return;
-
     const pos = { lat: userLocation.lat, lng: userLocation.lng };
     if (!userMarkerRef.current) {
       userMarkerRef.current = new window.google.maps.Marker({
@@ -111,22 +108,16 @@ useEffect(() => {
     }
   }, [mapReady, userLocation]);
 
-
-  // ── Sync live spot markers ───────────────────────────────────────────────────
+  // Sync spot markers
   useEffect(() => {
     if (!mapReady || !googleMapRef.current) return;
-
     const currentIds = new Set(liveSpots.map(s => s.id));
-
-    // Remove stale markers
     Object.keys(markersRef.current).forEach(id => {
       if (!currentIds.has(id)) {
         markersRef.current[id].setMap(null);
         delete markersRef.current[id];
       }
     });
-
-    // Add / update markers
     liveSpots.forEach(spot => {
       const pos = { lat: spot.lat || spot.latitude, lng: spot.lng || spot.longitude };
       if (markersRef.current[spot.id]) {
@@ -152,8 +143,7 @@ useEffect(() => {
     });
   }, [mapReady, liveSpots, setSelectedSpot]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
+  // Handlers
   const handleReportTap = useCallback(() => {
     setShowModal(true);
   }, []);
@@ -161,9 +151,10 @@ useEffect(() => {
   const handleModalSubmit = useCallback(async (details) => {
     try {
       const spotId = await reportSpot({
-        spotType: details.spotType,
-        isGroupOnly: details.isGroupOnly || false,
-        groupId: details.groupId || null,
+        spotType:      details.spotType,
+        isGroupOnly:   details.isGroupOnly || false,
+        groupId:       details.groupId || null,
+        manualAddress: details.address || '',
       });
       if (spotId) {
         setShowModal(false);
@@ -185,7 +176,6 @@ useEffect(() => {
     const lng = selectedSpot.lng || selectedSpot.longitude;
     if (provider === 'waze') navigateWithWaze(lat, lng);
     else navigateWithGoogleMaps(lat, lng);
-    // Don't close the panel here – SpotInfoPanel will show Pango buttons after navigation
   }, [selectedSpot]);
 
   const handleMarkTaken = useCallback(async () => {
@@ -196,77 +186,21 @@ useEffect(() => {
     showToast('✔ סומנה כתפוסה');
   }, [selectedSpot, uid, setSelectedSpot]);
 
-  function calculatePrediction() {
-    const hour = new Date().getHours();
-														   
-			 
-	 
-
-    let estimatedTime;
-    let demandLevel;
-
-    if (hour >= 7 && hour <= 9) {
-      estimatedTime = 3;
-      demandLevel = 'גבוהה מאוד';
-    } else if (hour >= 17 && hour <= 20) {
-      estimatedTime = 4;
-      demandLevel = 'גבוהה';
-    } else if (hour >= 10 && hour <= 16) {
-      estimatedTime = 7;
-      demandLevel = 'בינונית';
-    } else {
-      estimatedTime = 10;
-      demandLevel = 'נמוכה';
-    }
-
-    setPrediction({
-      estimatedTime,
-      demandLevel,
-      lat: userLocation?.lat,
-      lng: userLocation?.lng,
-    });
-
   async function calculateParkingPrediction() {
-    if (!userLocation) {
-      showToast('❌ לא נמצא מיקום משתמש');
-      return;
-    }
-
-    setPredictionLoading(true);
-	 
-
+    if (!userLocation) { showToast('❌ לא נמצא מיקום'); return; }
+    setPredLoading(true);
     try {
-      const ranking = await rankParkingSpots({
-        userLocation,
-        liveSpots,
-        maxRadiusKm: 1.5,
-      });
-						   
-				  
-										   
-   
-
-		  
-								  
-
-      setPrediction({
-        bestSpot: ranking.bestSpot,
-        results: ranking.results,
-        source: ranking.source,
-													   
-      });
-
-      if (ranking.bestSpot) {
-        setSelectedSpot(ranking.bestSpot);
-        showToast('✅ נמצאה החניה המומלצת ביותר');
-      } else {
-        showToast('לא נמצאו חניות זמינות ברדיוס הקרוב');
-      }
+      const hour = new Date().getHours();
+      let estimatedTime, demandLevel;
+      if      (hour >= 7  && hour <= 9)  { estimatedTime = 3;  demandLevel = 'גבוהה מאוד'; }
+      else if (hour >= 17 && hour <= 20) { estimatedTime = 4;  demandLevel = 'גבוהה'; }
+      else if (hour >= 10 && hour <= 16) { estimatedTime = 7;  demandLevel = 'בינונית'; }
+      else                               { estimatedTime = 10; demandLevel = 'נמוכה'; }
+      setPrediction({ estimatedTime, demandLevel });
     } catch (e) {
-      console.error(e);
-      showToast('❌ שגיאה בחישוב החניה המומלצת');
+      showToast('❌ שגיאה בחיזוי');
     } finally {
-      setPredictionLoading(false);
+      setPredLoading(false);
     }
   }
 
@@ -276,44 +210,48 @@ useEffect(() => {
   }
 
   return (
-    <div style={styles.container}>
-      {/* Map container */}
-      <div ref={mapRef} style={styles.map} />
+    <div style={S.container}>
+      <div ref={mapRef} style={S.map} />
 
-      {/* Top bar */}
-      <div style={styles.topBar}>
-        <div style={styles.logo}>FreeSpot 🅿️</div>
+      {/* Top bar with search */}
+      <div style={S.topBar}>
         <AlertBadge count={alerts.length} onClick={() => navigate('/profile')} />
+        <SearchBar
+          onSearch={(loc) => setSearchLocation(loc)}
+          onClear={() => setSearchLocation(null)}
+          googleMapRef={googleMapRef}
+        />
       </div>
 
-      {/* Spots count badge */}
-      {liveSpots.length > 0 && (
-        <div style={styles.spotsCount}>
-          {liveSpots.length} חניות פנויות
-        </div>
+      {/* Search results panel */}
+      {searchLocation && (
+        <SearchResultsPanel
+          searchLocation={searchLocation}
+          spots={liveSpots}
+          onSelectSpot={(spot) => { setSelectedSpot(spot); setSearchLocation(null); }}
+          onClose={() => setSearchLocation(null)}
+        />
       )}
 
-      {/* Parking prediction */}
-      <div style={styles.predictionBox}>
-      																				   
-        <button style={styles.predictionBtn} onClick={calculateParkingPrediction}>
-          חיזוי תפיסת חניה
-		 
-																				   
-        </button>
+      {/* Spots count */}
+      {liveSpots.length > 0 && (
+        <div style={S.spotsCount}>{liveSpots.length} חניות פנויות</div>
+      )}
 
+      {/* Prediction box */}
+      <div style={S.predictionBox}>
+        <button style={S.predictionBtn} onClick={calculateParkingPrediction} disabled={predLoading}>
+          {predLoading ? 'מחשב...' : 'חיזוי תפיסת חניה'}
+        </button>
         {prediction && (
-          <div style={styles.predictionText}>
-            חניה באזור שלך צפויה להיתפס תוך כ-{prediction.estimatedTime} דקות
-				
-																									   
-            <br />
+          <div style={S.predictionText}>
+            חניה צפויה להיתפס תוך כ-{prediction.estimatedTime} דקות<br />
             רמת ביקוש: {prediction.demandLevel}
           </div>
         )}
       </div>
 
-      {/* Selected spot info panel */}
+      {/* Spot info panel */}
       {selectedSpot && (
         <SpotInfoPanel
           spot={selectedSpot}
@@ -324,19 +262,17 @@ useEffect(() => {
         />
       )}
 
-      {/* Big REPORT button */}
+      {/* Report button */}
       <button
-        style={{ ...styles.reportBtn, opacity: reportLoading ? 0.6 : 1 }}
+        style={{ ...S.reportBtn, opacity: reportLoading ? 0.6 : 1 }}
         onClick={handleReportTap}
         disabled={reportLoading}
       >
         {reportLoading ? '⏳ שולח...' : '🅿 פינוי חניה'}
       </button>
 
-      {/* Toast */}
-      {toast && <div style={styles.toast}>{toast}</div>}
+      {toast && <div style={S.toast}>{toast}</div>}
 
-      {/* Report Modal */}
       {showModal && (
         <ReportModal
           onSubmit={handleModalSubmit}
@@ -346,87 +282,23 @@ useEffect(() => {
         />
       )}
 
-      {/* Bottom navigation */}
       <BottomNav active="map" />
     </div>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-const styles = {
-  container: {
-    position: 'relative', width: '100vw', height: '100vh',
-    fontFamily: "'Heebo', sans-serif", direction: 'rtl',
-    overflow: 'hidden',
-  },
+const S = {
+  container: { position: 'relative', width: '100vw', height: '100vh', fontFamily: "'Assistant', sans-serif", direction: 'rtl', overflow: 'hidden' },
   map: { width: '100%', height: '100%' },
-  topBar: {
-    position: 'absolute', top: 16, right: 16, left: 16,
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)',
-    borderRadius: 12, padding: '10px 16px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-  },
-  logo: { color: '#fff', fontWeight: 700, fontSize: 18 },
-  spotsCount: {
-    position: 'absolute', top: 80, right: '50%', transform: 'translateX(50%)',
-    background: '#22c55e', color: '#fff',
-    padding: '6px 18px', borderRadius: 20,
-    fontSize: 13, fontWeight: 600,
-    boxShadow: '0 2px 10px rgba(34,197,94,0.5)',
-  },
-  reportBtn: {
-    position: 'absolute', bottom: 100, right: '50%', transform: 'translateX(50%)',
-    background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-    color: '#fff', border: 'none',
-    padding: '18px 48px', borderRadius: 50,
-    fontSize: 18, fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 6px 30px rgba(99,102,241,0.6)',
-    transition: 'transform 0.15s, opacity 0.2s',
-  },
-
-  predictionBox: {
-    position: 'absolute',
-    top: 120,
-    right: '50%',
-    transform: 'translateX(50%)',
-    background: 'rgba(15,23,42,0.92)',
-    color: '#fff',
-    padding: 12,
-    borderRadius: 16,
-    textAlign: 'center',
-    width: 260,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-    zIndex: 10,
-  },
-  predictionBtn: {
-    background: '#22c55e',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 12,
-    padding: '10px 16px',
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: 'pointer',
-  },
-  predictionText: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 1.5,
-  },
-  toast: {
-    position: 'absolute', top: '50%', right: '50%',
-    transform: 'translate(50%, -50%)',
-    background: 'rgba(15,23,42,0.92)', color: '#fff',
-    padding: '14px 24px', borderRadius: 12,
-    fontSize: 15, fontWeight: 600,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-    pointerEvents: 'none',
-  },
+topBar: { position: 'absolute', top: 48, right: 16, left: 16, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '8px 12px', boxShadow: '0 4px 20px rgba(0,0,0,0.4)', zIndex: 1, overflow: 'visible' },  logo: { color: '#fff', fontWeight: 700, fontSize: 18 },
+  spotsCount: { position: 'absolute', top: 80, right: '50%', transform: 'translateX(50%)', background: '#22c55e', color: '#fff', padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, boxShadow: '0 2px 10px rgba(34,197,94,0.5)' },
+  reportBtn: { position: 'absolute', bottom: 100, right: '50%', transform: 'translateX(50%)', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', color: '#fff', border: 'none', padding: '18px 48px', borderRadius: 50, fontSize: 18, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 30px rgba(99,102,241,0.6)', transition: 'transform 0.15s, opacity 0.2s' },
+  predictionBox: { position: 'absolute', top: 120, right: '50%', transform: 'translateX(50%)', background: 'rgba(15,23,42,0.92)', color: '#fff', padding: 12, borderRadius: 16, textAlign: 'center', width: 260, boxShadow: '0 4px 20px rgba(0,0,0,0.4)', zIndex: 10 },
+  predictionBtn: { background: '#22c55e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Assistant', sans-serif" },
+  predictionText: { marginTop: 10, fontSize: 14, lineHeight: 1.5 },
+  toast: { position: 'absolute', top: '50%', right: '50%', transform: 'translate(50%, -50%)', background: 'rgba(15,23,42,0.92)', color: '#fff', padding: '14px 24px', borderRadius: 12, fontSize: 15, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', pointerEvents: 'none' },
 };
 
-// ─── Google Maps dark style ───────────────────────────────────────────────────
 const DARK_MAP_STYLES = [
   { elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
