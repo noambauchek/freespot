@@ -151,11 +151,16 @@ export default function MapScreen() {
   const handleModalSubmit = useCallback(async (details) => {
     try {
       const spotId = await reportSpot({
-        spotType:      details.spotType,
-        isGroupOnly:   details.isGroupOnly || false,
-        groupId:       details.groupId || null,
-        manualAddress: details.address || '',
-      });
+  spotType:      details.spotType,
+  isGroupOnly:   details.isGroupOnly || false,
+  groupId:       details.groupId || null,
+  manualAddress: details.address || '',
+  isPaid:        details.isPaid,
+  isHandicap:    details.isHandicap,
+  searchTime:    details.searchTime,
+  occupancy:     details.occupancy,
+  image:         details.image,
+});
       if (spotId) {
         setShowModal(false);
         const msg = details.isGroupOnly && details.groupId
