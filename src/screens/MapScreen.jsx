@@ -293,20 +293,32 @@ export default function MapScreen() {
 }
 
 const S = {
-  container: { position: 'relative', width: '100vw', height: '100vh', fontFamily: "'Assistant', sans-serif", direction: 'rtl', overflow: 'hidden' },
-  map: { width: '100%', height: '100%' },
+ container: { 
+  position: 'fixed', 
+  top: 0, left: 0, right: 0, bottom: 0,
+  fontFamily: "'Assistant', sans-serif", 
+  direction: 'rtl',
+  overflow: 'hidden',
+},
+map: { 
+  position: 'absolute',
+  top: 0, left: 0, right: 0, bottom: 0,
+},
 topBar: { 
-  position: 'absolute', 
-  top: 'max(48px, env(safe-area-inset-top, 48px))', 
-  right: 16, left: 16, 
-  display: 'flex', alignItems: 'center', gap: 10, 
-  background: 'rgba(15,23,42,0.85)', 
+  position: 'fixed',
+  top: 20,
+  right: 0,
+  left: 0,
+  display: 'flex', 
+  alignItems: 'center', 
+  gap: 10, 
+  background: 'rgba(15,23,42,0.95)', 
   backdropFilter: 'blur(8px)', 
-  borderRadius: 12, 
-  padding: '8px 12px', 
+  padding: 'env(safe-area-inset-top, 12px) 12px 14px',
+  paddingTop: 'max(env(safe-area-inset-top), 12px)',
   boxShadow: '0 4px 20px rgba(0,0,0,0.4)', 
-  zIndex: 1, 
-  overflow: 'visible' 
+  zIndex: 50,
+  overflow: 'visible',
 },
   spotsCount: { position: 'absolute', top: 80, right: '50%', transform: 'translateX(50%)', background: '#22c55e', color: '#fff', padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, boxShadow: '0 2px 10px rgba(34,197,94,0.5)' },
   reportBtn: { position: 'absolute', bottom: 100, right: '50%', transform: 'translateX(50%)', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', color: '#fff', border: 'none', padding: '18px 48px', borderRadius: 50, fontSize: 18, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 30px rgba(99,102,241,0.6)', transition: 'transform 0.15s, opacity 0.2s' },
