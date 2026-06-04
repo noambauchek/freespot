@@ -66,16 +66,7 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        <div style={styles.divider}><span>או</span></div>
-
-        <button style={styles.btnGoogle} onClick={handleGoogleLogin} disabled={loading}>
-          <img
-            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-            alt="Google"
-            style={{ width: 20, marginLeft: 8 }}
-          />
-          התחבר עם Google
-        </button>
+       
 
         <p style={styles.switchText}>
           אין לך חשבון?{' '}

@@ -227,7 +227,7 @@ const S = {
   field: { marginBottom: 20 },
   fieldLabel: { display: 'block', fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 8, textAlign: 'right' },
   input: { width: '100%', padding: '11px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, color: '#1e293b', background: '#f8fafc', outline: 'none', boxSizing: 'border-box' },
-  locationLink: { background: 'none', border: 'none', color: '#3b82f6', fontSize: 13, cursor: 'pointer', padding: '4px 0', fontFamily: "'Heebo', sans-serif", textDecoration: 'underline' },
+  locationLink: { background: 'none', border: 'none', color: '#3b82f6', fontSize: 17, cursor: 'pointer', padding: '4px 0', fontFamily: "'Heebo', sans-serif", textDecoration: 'underline' },
   yesNoRow: { display: 'flex', gap: 10, flexDirection: 'row-reverse' },
   stepperRow: { display: 'flex', alignItems: 'center', gap: 16, flexDirection: 'row-reverse' },
   stepperBtn: { width: 36, height: 36, borderRadius: '50%', border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 },
