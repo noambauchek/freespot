@@ -31,26 +31,34 @@ export default function MapScreen() {
   const { userLocation, liveSpots, selectedSpot, setSelectedSpot, alerts } = useParking();
   const { uid } = useAuth();
   const { reportSpot, loading: reportLoading } = useReportSpot();
-  const [userGroups, setUserGroups]     = useState([]);
+  const [userGroups, setUserGroups]         = useState([]);
   const mapRef        = useRef(null);
   const googleMapRef  = useRef(null);
   const markersRef    = useRef({});
   const userMarkerRef = useRef(null);
-  const [mapReady, setMapReady]         = useState(false);
-  const [toast, setToast]               = useState(null);
-  const [showModal, setShowModal]       = useState(false);
-  const [prediction, setPrediction]     = useState(null);
-  const [predLoading, setPredLoading]   = useState(false);
+  const [mapReady, setMapReady]             = useState(false);
+  const [toast, setToast]                   = useState(null);
+  const [showModal, setShowModal]           = useState(false);
+  const [prediction, setPrediction]         = useState(null);
+  const [predLoading, setPredLoading]       = useState(false);
   const [searchLocation, setSearchLocation] = useState(null);
-
   // Load user groups
   useEffect(() => {
-    if (uid) {
-      import('../services/firestore').then(({ getUserGroups }) => {
-        getUserGroups(uid).then(setUserGroups);
-      });
-    }
-  }, [uid]);
+  function setAppHeight() {
+    document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+  }
+  setAppHeight();
+  window.addEventListener('resize', setAppHeight);
+  return () => window.removeEventListener('resize', setAppHeight);
+}, []);
+
+// Prevent body scroll on map screen
+useEffect(() => {
+  document.body.style.overflow = 'hidden';
+  return () => {
+    document.body.style.overflow = 'auto';
+  };
+}, []);
 
   // Load Google Maps SDK
   useEffect(() => {
@@ -208,6 +216,24 @@ export default function MapScreen() {
       setPredLoading(false);
     }
   }
+const topBarRef = useRef(null);
+const [topBarHeight, setTopBarHeight] = useState(70);
+
+
+  useEffect(() => {
+  function measure() {
+    if (topBarRef.current) {
+      const h = topBarRef.current.getBoundingClientRect().bottom;
+      setTopBarHeight(h);
+    }
+  }
+  measure();
+  setTimeout(measure, 100);
+  setTimeout(measure, 500);
+  setTimeout(measure, 1000);
+  window.addEventListener('resize', measure);
+  return () => window.removeEventListener('resize', measure);
+}, []);
 
   function showToast(msg) {
     setToast(msg);
@@ -219,7 +245,7 @@ export default function MapScreen() {
       <div ref={mapRef} style={S.map} />
 
       {/* Top bar with search */}
-      <div style={S.topBar}>
+      <div style={S.topBar} ref={topBarRef}>
         <AlertBadge count={alerts.length} onClick={() => navigate('/profile')} />
         <SearchBar
           onSearch={(loc) => setSearchLocation(loc)}
@@ -227,6 +253,7 @@ export default function MapScreen() {
           googleMapRef={googleMapRef}
         />
       </div>
+      
 
       {/* Search results panel */}
       {searchLocation && (
@@ -240,11 +267,11 @@ export default function MapScreen() {
 
       {/* Spots count */}
       {liveSpots.length > 0 && (
-        <div style={S.spotsCount}>{liveSpots.length} חניות פנויות</div>
-      )}
-
+  <div style={{ ...S.spotsCount, top: topBarHeight + 10 }}>{liveSpots.length} חניות פנויות</div>
+)}
+{console.log('rendering with topBarHeight:', topBarHeight)}
       {/* Prediction box */}
-      <div style={S.predictionBox}>
+      <div style={{ ...S.predictionBox, top: topBarHeight + 10 }}>
         <button style={S.predictionBtn} onClick={calculateParkingPrediction} disabled={predLoading}>
           {predLoading ? 'מחשב...' : 'חיזוי תפיסת חניה'}
         </button>
@@ -293,38 +320,51 @@ export default function MapScreen() {
 }
 
 const S = {
- container: { 
-  position: 'fixed', 
-  top: 0, left: 0, right: 0, bottom: 0,
-  fontFamily: "'Assistant', sans-serif", 
-  direction: 'rtl',
-  overflow: 'hidden',
-},
-map: { 
-  position: 'absolute',
-  top: 0, left: 0, right: 0, bottom: 0,
-},
-topBar: { 
+  container: { position: 'relative', width: '100vw', height: '100vh', fontFamily: "'Assistant', sans-serif", direction: 'rtl', overflow: 'hidden' },
+  map: { width: '100%', height: '100%' },
+  topBar: { 
+    position: 'fixed', top: 0, right: 0, left: 0,
+    display: 'flex', alignItems: 'center', gap: 10, 
+    background: 'rgba(15,23,42,0.95)', 
+    backdropFilter: 'blur(8px)', 
+    padding: '12px 12px 12px',
+    paddingTop: 'max(env(safe-area-inset-top, 12px), 12px)',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.4)', 
+    zIndex: 50, overflow: 'visible',
+  },
+  spotsCount: { 
+    position: 'absolute', top: 80, right: '50%', transform: 'translateX(50%)', 
+    background: '#22c55e', color: '#fff', 
+    padding: '6px 18px', borderRadius: 20, 
+    fontSize: 13, fontWeight: 600, 
+    boxShadow: '0 2px 10px rgba(34,197,94,0.5)',
+    whiteSpace: 'nowrap', zIndex: 10,
+  },
+  
+  predictionBox: { 
   position: 'fixed',
-  top: 20,
-  right: 0,
-  left: 0,
-  display: 'flex', 
-  alignItems: 'center', 
-  gap: 10, 
-  background: 'rgba(15,23,42,0.95)', 
-  backdropFilter: 'blur(8px)', 
-  padding: 'env(safe-area-inset-top, 12px) 12px 14px',
-  paddingTop: 'max(env(safe-area-inset-top), 12px)',
+  right: '50%', 
+  transform: 'translateX(50%)',
+  background: 'rgba(15,23,42,0.92)', 
+  color: '#fff', 
+  padding: '8px 12px', 
+  borderRadius: 16, 
+  textAlign: 'center',
+  width: 220,
   boxShadow: '0 4px 20px rgba(0,0,0,0.4)', 
-  zIndex: 50,
-  overflow: 'visible',
+  zIndex: 10,
 },
-  spotsCount: { position: 'absolute', top: 80, right: '50%', transform: 'translateX(50%)', background: '#22c55e', color: '#fff', padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, boxShadow: '0 2px 10px rgba(34,197,94,0.5)' },
-  reportBtn: { position: 'absolute', bottom: 100, right: '50%', transform: 'translateX(50%)', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', color: '#fff', border: 'none', padding: '18px 48px', borderRadius: 50, fontSize: 18, fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 30px rgba(99,102,241,0.6)', transition: 'transform 0.15s, opacity 0.2s' },
-  predictionBox: { position: 'absolute', top: 120, right: '50%', transform: 'translateX(50%)', background: 'rgba(15,23,42,0.92)', color: '#fff', padding: 12, borderRadius: 16, textAlign: 'center', width: 260, boxShadow: '0 4px 20px rgba(0,0,0,0.4)', zIndex: 10 },
   predictionBtn: { background: '#22c55e', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Assistant', sans-serif" },
   predictionText: { marginTop: 10, fontSize: 14, lineHeight: 1.5 },
+  reportBtn: { 
+    position: 'fixed', bottom: 100, right: '50%', transform: 'translateX(50%)', 
+    background: 'linear-gradient(135deg, #3b82f6, #6366f1)', 
+    color: '#fff', border: 'none', padding: '18px 48px', borderRadius: 50, 
+    fontSize: 18, fontWeight: 700, cursor: 'pointer', 
+    boxShadow: '0 6px 30px rgba(99,102,241,0.6)', 
+    transition: 'transform 0.15s, opacity 0.2s',
+    zIndex: 10,
+  },
   toast: { position: 'absolute', top: '50%', right: '50%', transform: 'translate(50%, -50%)', background: 'rgba(15,23,42,0.92)', color: '#fff', padding: '14px 24px', borderRadius: 12, fontSize: 15, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', pointerEvents: 'none' },
 };
 

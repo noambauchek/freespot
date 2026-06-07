@@ -59,7 +59,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <div style={styles.page}>
+   <div style={{ ...styles.page, overflowY: 'auto', WebkitOverflowScrolling: 'touch', height: 'auto' }}>
       <div style={styles.header}>
         <div style={styles.avatar}>
           {(userProfile?.fullName || 'U')[0].toUpperCase()}
@@ -182,9 +182,14 @@ const statStyles = {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#0f172a',
-    fontFamily: "'Heebo', sans-serif", direction: 'rtl',
-    color: '#fff', paddingBottom: 80,
+    minHeight: '100vh', 
+    background: '#0f172a',
+    fontFamily: "'Assistant', sans-serif", 
+    direction: 'rtl',
+    color: '#fff', 
+    paddingBottom: 100,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
   },
   header: {
     padding: '40px 24px 24px',
