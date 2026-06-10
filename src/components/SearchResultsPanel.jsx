@@ -31,21 +31,11 @@ const TYPE_LABELS = {
   private:    '🔒 פרטי',
 };
 
-export default function SearchResultsPanel({ searchLocation, spots, onSelectSpot, onClose }) {
+export default function SearchResultsPanel({ searchLocation, spots, loading, onSelectSpot, onClose }) {
   if (!searchLocation) return null;
 
   // Filter spots within 1km of searched location
-  const nearbySpots = spots
-    .map(s => ({
-      ...s,
-      distance: distanceKm(
-        searchLocation.lat, searchLocation.lng,
-        s.lat || s.latitude, s.lng || s.longitude
-      )
-    }))
-    .filter(s => s.distance <= 1)
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 10);
+  const nearbySpots = spots.slice(0, 10);
 
   const timeEst = estimateParkingTime(nearbySpots.length, 0);
 
@@ -75,7 +65,11 @@ export default function SearchResultsPanel({ searchLocation, spots, onSelectSpot
 
       {/* Spots list */}
       <div style={S.list}>
-        {nearbySpots.length === 0 ? (
+        {loading ? (
+  <div style={S.empty}>
+    <p>מחשב חניות מומלצות...</p>
+  </div>
+) : nearbySpots.length === 0 ? (
           <div style={S.empty}>
             <p style={{ fontSize: 32 }}>🅿</p>
             <p>לא נמצאו חניות פנויות באזור זה</p>
@@ -104,6 +98,13 @@ export default function SearchResultsPanel({ searchLocation, spots, onSelectSpot
                       ? `${Math.round(spot.distance * 1000)} מטר`
                       : `${spot.distance.toFixed(1)} ק״מ`}
                   </div>
+                  {spot.score !== undefined && (
+  <div style={S.spotDetail}>
+    🧠 ציון התאמה: {spot.score}
+    <br />
+    🚶 זמן הליכה משוער: {spot.estimatedWalkingMinutes} דקות
+  </div>
+)}
                   {spot.isPaid !== undefined && (
                     <div style={S.spotDetail}>
                       {spot.isPaid ? '💳 בתשלום' : '✅ חינם'}
