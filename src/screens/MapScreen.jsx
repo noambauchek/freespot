@@ -14,6 +14,7 @@ import AlertBadge from '../components/AlertBadge';
 import ReportModal from '../components/ReportModal';
 import SearchBar from '../components/SearchBar';
 import SearchResultsPanel from '../components/SearchResultsPanel';
+import { rankParkingSpots } from '../services/parkingAlgorithmApi';
 
 const MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY || '';
 
@@ -42,6 +43,8 @@ export default function MapScreen() {
   const [prediction, setPrediction]         = useState(null);
   const [predLoading, setPredLoading]       = useState(false);
   const [searchLocation, setSearchLocation] = useState(null);
+  const [bestSpot, setBestSpot] = useState(null);
+  const [bestSpotLoading, setBestSpotLoading] = useState(false);
   // Load user groups
   useEffect(() => {
   function setAppHeight() {
@@ -248,9 +251,31 @@ const [topBarHeight, setTopBarHeight] = useState(70);
       <div style={S.topBar} ref={topBarRef}>
         <AlertBadge count={alerts.length} onClick={() => navigate('/profile')} />
         <SearchBar
-          onSearch={(loc) => setSearchLocation(loc)}
-          onClear={() => setSearchLocation(null)}
-          googleMapRef={googleMapRef}
+         onSearch={async (loc) => {
+    setSearchLocation(loc);
+    setSearchLoading(true);
+
+    try {
+      const result = await rankParkingSpots({
+        userLocation: loc,
+        liveSpots,
+        maxRadiusKm: 1.5,
+      });
+
+      setRankedSearchSpots(result.results);
+    } catch (e) {
+      console.error(e);
+      showToast('❌ שגיאה בהרצת אלגוריתם החיפוש');
+      setRankedSearchSpots([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }}
+  onClear={() => {
+    setSearchLocation(null);
+    setRankedSearchSpots([]);
+  }}
+  googleMapRef={googleMapRef}
         />
       </div>
       
@@ -258,10 +283,17 @@ const [topBarHeight, setTopBarHeight] = useState(70);
       {/* Search results panel */}
       {searchLocation && (
         <SearchResultsPanel
-          searchLocation={searchLocation}
-          spots={liveSpots}
-          onSelectSpot={(spot) => { setSelectedSpot(spot); setSearchLocation(null); }}
-          onClose={() => setSearchLocation(null)}
+        searchLocation={searchLocation}
+  spots={rankedSearchSpots}
+  loading={searchLoading}
+  onSelectSpot={(spot) => {
+    setSelectedSpot(spot);
+    setSearchLocation(null);
+  }}
+  onClose={() => {
+    setSearchLocation(null);
+    setRankedSearchSpots([]);
+  }}
         />
       )}
 
