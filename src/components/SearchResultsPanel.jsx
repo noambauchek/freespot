@@ -79,12 +79,36 @@ export default function SearchResultsPanel({ searchLocation, spots, loading, onS
           </div>
         ) : (
           nearbySpots.map(spot => {
-            const reportedAt = spot.reportedAt?.toMillis
-              ? spot.reportedAt.toMillis()
-              : spot.reportedAt instanceof Date
-                ? spot.reportedAt.getTime()
-                : Date.now();
-            const minsAgo = Math.floor((Date.now() - reportedAt) / 60000);
+            console.log('DEBUG SPOT:', spot);
+
+console.log('DEBUG TIME:', {
+  id: spot.id,
+  reportedAt: spot.reportedAt,
+  lastReportTime: spot.lastReportTime,
+  expiresAt: spot.expiresAt,
+  reportedAtMillis: spot.reportedAtMillis,
+  ageMinutes: spot.ageMinutes,
+  now: Date.now(),
+});
+const getTimeMillis = (value) => {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (value instanceof Date) return value.getTime();
+  if (value.toMillis) return value.toMillis();
+  if (value._seconds) return value._seconds * 1000;
+  if (value.seconds) return value.seconds * 1000;
+  return null;
+};
+
+const expiresAtMillis = getTimeMillis(spot.expiresAt);
+
+const reportedAt =
+  getTimeMillis(spot.reportedAt) ||
+  getTimeMillis(spot.lastReportTime) ||
+  (expiresAtMillis ? expiresAtMillis - 15 * 60 * 1000 : null) ||
+  Date.now();
+
+const minsAgo = Math.max(0, Math.floor((Date.now() - reportedAt) / 60000));
 
             return (
               <div key={spot.id} style={S.spotCard} onClick={() => onSelectSpot(spot)}>
@@ -93,11 +117,17 @@ export default function SearchResultsPanel({ searchLocation, spots, loading, onS
                   {spot.address && (
                     <div style={S.spotAddress}>{spot.address}</div>
                   )}
-                  <div style={S.spotMeta}>
-                    דווח לפני {minsAgo} דק׳ · {spot.distance < 0.1
-                      ? `${Math.round(spot.distance * 1000)} מטר`
-                      : `${spot.distance.toFixed(1)} ק״מ`}
-                  </div>
+                <div style={S.spotMeta}>
+  דווח לפני {minsAgo} דק׳ · {
+    (() => {
+      const distance = Number(spot.distanceKm ?? spot.distance ?? 0);
+
+      return distance < 0.1
+        ? `${Math.round(distance * 1000)} מטר`
+        : `${distance.toFixed(2)} ק״מ`;
+    })()
+  }
+</div>
                   {spot.score !== undefined && (
   <div style={S.spotDetail}>
     🧠 ציון התאמה: {spot.score}
