@@ -43,6 +43,8 @@ export default function MapScreen() {
   const [prediction, setPrediction]         = useState(null);
   const [predLoading, setPredLoading]       = useState(false);
   const [searchLocation, setSearchLocation] = useState(null);
+  const [rankedSearchSpots, setRankedSearchSpots] = useState([]);
+const [searchLoading, setSearchLoading] = useState(false);
   const [bestSpot, setBestSpot] = useState(null);
   const [bestSpotLoading, setBestSpotLoading] = useState(false);
   // Load user groups
@@ -255,13 +257,36 @@ const [topBarHeight, setTopBarHeight] = useState(70);
     setSearchLocation(loc);
     setSearchLoading(true);
 
-    try {
-      const result = await rankParkingSpots({
-        userLocation: loc,
-        liveSpots,
-        maxRadiusKm: 1.5,
-      });
+   try {
+      const getTimeMillis = (value) => {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (value instanceof Date) return value.getTime();
+  if (value.toMillis) return value.toMillis();
+  if (value._seconds) return value._seconds * 1000;
+  if (value.seconds) return value.seconds * 1000;
+  return null;
+};
 
+const now = Date.now();
+
+const validLiveSpots = liveSpots.filter((spot) => {
+  const expiresAtMillis = getTimeMillis(spot.expiresAt);
+
+  return (
+    spot.status === 'S1' &&
+    expiresAtMillis &&
+    expiresAtMillis > now
+  );
+});
+
+const result = await rankParkingSpots({
+  userLocation: loc,
+  liveSpots: validLiveSpots,
+  maxRadiusKm: 1.5,
+});
+      console.log('ALGORITHM RESULT:', result);
+console.log('FIRST RESULT:', result.results?.[0]);
       setRankedSearchSpots(result.results);
     } catch (e) {
       console.error(e);
