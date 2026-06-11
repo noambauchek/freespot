@@ -90,33 +90,42 @@ app.post('/rank-parking', async (req, res) => {
     const rankedSpots = [];
 
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      const spotLat = toNumber(data.latitude);
-      const spotLng = toNumber(data.longitude);
+  const data = doc.data();
 
-      if (spotLat === null || spotLng === null) return;
+  const now = Date.now();
+  const expiresAtMillis = timestampToMillis(data.expiresAt);
 
-      const distanceKm = getDistanceKm(userLat, userLng, spotLat, spotLng);
-      if (distanceKm > maxRadius) return;
+  if (!expiresAtMillis || expiresAtMillis <= now) {
+    return;
+  }
 
-      const reportedAtMillis = timestampToMillis(data.reportedAt || data.lastReportTime);
-      const score = calculateScore({
-        distanceKm,
-        reportedAtMillis,
-        type: data.type,
-      });
+  const spotLat = toNumber(data.latitude);
+  const spotLng = toNumber(data.longitude);
 
-      rankedSpots.push({
-        id: doc.id,
-        ...data,
-        latitude: spotLat,
-        longitude: spotLng,
-        distanceKm: Number(distanceKm.toFixed(2)),
-        score,
-        estimatedWalkingMinutes: Math.max(1, Math.round((distanceKm / 4.5) * 60)),
-      });
-    });
+  if (spotLat === null || spotLng === null) return;
 
+  const distanceKm = getDistanceKm(userLat, userLng, spotLat, spotLng);
+  if (distanceKm > maxRadius) return;
+
+  const reportedAtMillis =
+    timestampToMillis(data.reportedAt || data.lastReportTime) || now;
+
+  const score = calculateScore({
+    distanceKm,
+    reportedAtMillis,
+    type: data.type,
+  });
+
+  rankedSpots.push({
+    id: doc.id,
+    ...data,
+    latitude: spotLat,
+    longitude: spotLng,
+    distanceKm: Number(distanceKm.toFixed(2)),
+    score,
+    estimatedWalkingMinutes: Math.max(1, Math.round((distanceKm / 4.5) * 60)),
+  });
+});
     rankedSpots.sort((a, b) => b.score - a.score);
 
     res.status(200).json({
