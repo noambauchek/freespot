@@ -2,7 +2,28 @@
 // Client wrapper for the Cloud Run parking algorithm service.
 
 const DEFAULT_MAX_RADIUS_KM = 1.5;
+const SPOT_TTL_MS = 15 * 60 * 1000;
 const ALGORITHM_BASE_URL = process.env.REACT_APP_PARKING_ALGORITHM_URL;
+
+function getTimeMillis(value) {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (value instanceof Date) return value.getTime();
+  if (value?.toMillis) return value.toMillis();
+  if (value?._seconds) return value._seconds * 1000;
+  return null;
+}
+
+function getReportedAtMillis(spot) {
+  return (
+    getTimeMillis(spot.reportedAt) ||
+    getTimeMillis(spot.lastReportTime) ||
+    getTimeMillis(spot.createdAt) ||
+    (getTimeMillis(spot.expiresAt)
+      ? getTimeMillis(spot.expiresAt) - SPOT_TTL_MS
+      : Date.now())
+  );
+}
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -26,17 +47,26 @@ function localRankParking(userLocation, liveSpots, maxRadiusKm = DEFAULT_MAX_RAD
       const lng = spot.lng || spot.longitude;
       if (!lat || !lng) return null;
 
+      const reportedAtMillis = getReportedAtMillis(spot);
+      const ageMinutes = Math.max(0, (now - reportedAtMillis) / (1000 * 60));
+
       const distanceKm = getDistanceKm(userLocation.lat, userLocation.lng, lat, lng);
-      const ageMinutes = Math.max(0, (now - (spot.reportedAt || now)) / (1000 * 60));
       const distanceScore = Math.max(0, 100 - distanceKm * 66);
       const freshnessScore = Math.max(0, 100 - ageMinutes * 3.3);
       const typeScore = spot.type === 'T1' ? 100 : spot.type === 'T2' ? 85 : 75;
-      const score = Math.round(distanceScore * 0.55 + freshnessScore * 0.35 + typeScore * 0.10);
+
+      const score = Math.round(
+        distanceScore * 0.55 +
+        freshnessScore * 0.35 +
+        typeScore * 0.10
+      );
 
       return {
         ...spot,
         latitude: lat,
         longitude: lng,
+        reportedAtMillis,
+        ageMinutes: Math.floor(ageMinutes),
         distanceKm: Number(distanceKm.toFixed(2)),
         score,
         estimatedWalkingMinutes: Math.max(1, Math.round((distanceKm / 4.5) * 60)),
@@ -46,7 +76,11 @@ function localRankParking(userLocation, liveSpots, maxRadiusKm = DEFAULT_MAX_RAD
     .sort((a, b) => b.score - a.score);
 }
 
-export async function rankParkingSpots({ userLocation, liveSpots = [], maxRadiusKm = DEFAULT_MAX_RADIUS_KM }) {
+export async function rankParkingSpots({
+  userLocation,
+  liveSpots = [],
+  maxRadiusKm = DEFAULT_MAX_RADIUS_KM
+}) {
   if (!userLocation?.lat || !userLocation?.lng) {
     throw new Error('User location is missing');
   }
