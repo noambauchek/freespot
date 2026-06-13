@@ -57,6 +57,17 @@ const [searchLoading, setSearchLoading] = useState(false);
   return () => window.removeEventListener('resize', setAppHeight);
 }, []);
 
+  // Load user groups
+useEffect(() => {
+  if (uid) {
+    import('../services/firestore').then(({ getUserGroups }) => {
+      getUserGroups(uid).then(groups => {
+        setUserGroups(groups);
+      });
+    });
+  }
+}, [uid]);
+
 // Prevent body scroll on map screen
 useEffect(() => {
   document.body.style.overflow = 'hidden';
