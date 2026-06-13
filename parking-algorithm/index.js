@@ -53,13 +53,13 @@ function calculateScore({ distanceKm, reportedAtMillis, type }) {
   const now = Date.now();
   const ageMinutes = Math.max(0, (now - reportedAtMillis) / (1000 * 60));
 
-  // The closer the spot, the better. 1.5 km or more becomes close to 0.
+  //1.5 KM
   const distanceScore = Math.max(0, 100 - distanceKm * 66);
 
-  // Fresh reports are more reliable. After about 30 minutes the score is very low.
+  // 30 minutes.
   const freshnessScore = Math.max(0, 100 - ageMinutes * 3.3);
 
-  // Small preference for street parking types. Keep this simple for the academic project.
+  //free.
   const typeScore = type === 'free' ? 100 : type === 'blue_white' ? 90 : type === 'lot' ? 80 : 70;
 
   return Math.round(distanceScore * 0.55 + freshnessScore * 0.35 + typeScore * 0.10);
